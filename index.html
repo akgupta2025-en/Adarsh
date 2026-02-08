@@ -1,0 +1,2443 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asteroid Tracker - Real-time Space Visualization</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --deep-space: #0a0e27;
+        --electric-purple: #8b5cf6;
+        --neon-cyan: #06b6d4;
+        --vibrant-orange: #f97316;
+        --danger-red: #ef4444;
+        --success-green: #10b981;
+        --monitor-yellow: #f59e0b;
+      }
+
+      body {
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: radial-gradient(
+          ellipse at center,
+          #0a0e27 0%,
+          #000000 100%
+        );
+        color: white;
+        overflow: hidden;
+        min-height: 100vh;
+      }
+
+      #canvas-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      /* Glassmorphism UI Panels */
+      .glass-panel {
+        background: linear-gradient(
+          135deg,
+          rgba(30, 27, 75, 0.8),
+          rgba(49, 46, 129, 0.6)
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      }
+
+      /* Header */
+      #header {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      #header h1 {
+        font-size: 24px;
+        font-weight: 700;
+        background: linear-gradient(
+          90deg,
+          var(--neon-cyan),
+          var(--electric-purple)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      #header .status-dot {
+        width: 12px;
+        height: 12px;
+        background: var(--success-green);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+        box-shadow: 0 0 20px var(--success-green);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(1.2);
+        }
+      }
+
+      /* Left Panel - Asteroid List */
+      #asteroid-panel {
+        position: fixed;
+        left: 20px;
+        top: 100px;
+        width: 320px;
+        max-height: calc(100vh - 140px);
+        z-index: 100;
+        padding: 20px;
+        overflow-y: auto;
+      }
+
+      #asteroid-panel::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      #asteroid-panel::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+      }
+
+      #asteroid-panel::-webkit-scrollbar-thumb {
+        background: var(--electric-purple);
+        border-radius: 3px;
+      }
+
+      #asteroid-panel h2 {
+        font-size: 18px;
+        margin-bottom: 16px;
+        color: var(--neon-cyan);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .asteroid-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
+      }
+
+      .asteroid-card:hover {
+        background: rgba(139, 92, 246, 0.2);
+        border-color: var(--electric-purple);
+        transform: translateX(5px);
+      }
+
+      .asteroid-card.selected {
+        background: rgba(6, 182, 212, 0.2);
+        border-color: var(--neon-cyan);
+        box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+      }
+
+      .asteroid-card .name {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .asteroid-card .details {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .asteroid-card .tag {
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .tag.safe {
+        background: rgba(16, 185, 129, 0.3);
+        color: var(--success-green);
+      }
+      .tag.monitor {
+        background: rgba(245, 158, 11, 0.3);
+        color: var(--monitor-yellow);
+      }
+      .tag.caution {
+        background: rgba(249, 115, 22, 0.3);
+        color: var(--vibrant-orange);
+      }
+      .tag.danger {
+        background: rgba(239, 68, 68, 0.3);
+        color: var(--danger-red);
+      }
+
+      /* Track Button */
+      #track-btn {
+        width: 100%;
+        padding: 16px;
+        margin-top: 16px;
+        background: linear-gradient(
+          135deg,
+          var(--electric-purple),
+          var(--neon-cyan)
+        );
+        border: none;
+        border-radius: 12px;
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      #track-btn:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+      }
+
+      #track-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      #track-btn svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      /* Control Buttons */
+      .control-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .control-btn {
+        flex: 1;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        color: white;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .control-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--neon-cyan);
+      }
+
+      .control-btn.active {
+        background: rgba(6, 182, 212, 0.2);
+        border-color: var(--neon-cyan);
+      }
+
+      /* Right Panel - Info Display */
+      #info-panel {
+        position: fixed;
+        right: 20px;
+        top: 100px;
+        width: 360px;
+        z-index: 100;
+        padding: 24px;
+        opacity: 0;
+        transform: translateX(50px);
+        transition: all 0.5s ease;
+      }
+
+      #info-panel.visible {
+        opacity: 1;
+        transform: translateX(0);
+      }
+
+      #info-panel h2 {
+        font-size: 22px;
+        margin-bottom: 20px;
+        color: var(--neon-cyan);
+      }
+
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.4s ease;
+      }
+
+      .info-row.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .info-row .label {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+      }
+
+      .info-row .value {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--neon-cyan);
+      }
+
+      .info-row .value.danger {
+        color: var(--danger-red);
+      }
+
+      .info-row .value.warning {
+        color: var(--vibrant-orange);
+      }
+
+      .info-row .value.safe {
+        color: var(--success-green);
+      }
+
+      /* HUD */
+      #hud {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        padding: 20px 40px;
+        display: flex;
+        gap: 40px;
+        opacity: 0;
+        transition: all 0.5s ease;
+      }
+
+      #hud.visible {
+        opacity: 1;
+      }
+
+      .hud-item {
+        text-align: center;
+      }
+
+      .hud-item .label {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+      }
+
+      .hud-item .value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--neon-cyan);
+      }
+
+      /* Progress Bar */
+      #progress-container {
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 400px;
+        z-index: 100;
+        opacity: 0;
+        transition: all 0.5s ease;
+      }
+
+      #progress-container.visible {
+        opacity: 1;
+      }
+
+      #progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      #progress-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(
+          90deg,
+          var(--electric-purple),
+          var(--neon-cyan)
+        );
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+
+      #progress-text {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      /* User Location Marker */
+      #user-location-info {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        padding: 12px 24px;
+        font-size: 14px;
+      }
+
+      #user-location-info .location-icon {
+        color: var(--danger-red);
+        margin-right: 8px;
+      }
+
+      /* Data Display Overlay */
+      #rotating-data {
+        position: fixed;
+        right: 400px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 100;
+        padding: 20px 30px;
+        min-width: 250px;
+        opacity: 0;
+        transition: all 0.39s ease;
+      }
+
+      #rotating-data.visible {
+        opacity: 1;
+      }
+
+      #rotating-data .data-label {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-bottom: 6px;
+      }
+
+      #rotating-data .data-value {
+        font-size: 28px;
+        font-weight: 700;
+        background: linear-gradient(
+          90deg,
+          var(--neon-cyan),
+          var(--electric-purple)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      /* Mini Map */
+      #mini-map {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 200px;
+        height: 200px;
+        z-index: 100;
+        border-radius: 50%;
+        overflow: hidden;
+        opacity: 0;
+        transition: all 0.5s ease;
+      }
+
+      #mini-map.visible {
+        opacity: 1;
+      }
+
+      #mini-map-canvas {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Loading Screen */
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(
+          ellipse at center,
+          #0a0e27 0%,
+          #000000 100%
+        );
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.5s ease;
+      }
+
+      #loading-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .loader {
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top-color: var(--neon-cyan);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #loading-text {
+        margin-top: 20px;
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      /* Composition Chart */
+      #composition-chart {
+        margin-top: 20px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+      }
+
+      .composition-bar {
+        display: flex;
+        height: 24px;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 12px;
+      }
+
+      .composition-segment {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+
+      .composition-segment:hover {
+        filter: brightness(1.2);
+      }
+
+      .composition-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+      }
+
+      /* View Toggle */
+      #view-toggle {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 100;
+        display: flex;
+        gap: 10px;
+      }
+
+      .view-btn {
+        padding: 12px 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: white;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .view-btn:hover {
+        background: rgba(139, 92, 246, 0.2);
+      }
+
+      .view-btn.active {
+        background: var(--electric-purple);
+        border-color: var(--electric-purple);
+      }
+
+      /* Responsive */
+      @media (max-width: 1200px) {
+        #asteroid-panel {
+          width: 280px;
+        }
+        #info-panel {
+          width: 300px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        #asteroid-panel {
+          width: 100%;
+          left: 0;
+          top: auto;
+          bottom: 0;
+          max-height: 40vh;
+          border-radius: 24px 24px 0 0;
+        }
+        #info-panel {
+          width: 100%;
+          right: 0;
+          top: auto;
+          bottom: 45vh;
+          border-radius: 0;
+        }
+        #hud {
+          gap: 20px;
+          padding: 15px 20px;
+        }
+        .hud-item .value {
+          font-size: 16px;
+        }
+      }
+
+      /* Accessibility */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+
+      /* Focus states */
+      button:focus,
+      .asteroid-card:focus {
+        outline: 2px solid var(--neon-cyan);
+        outline-offset: 2px;
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+      <div class="loader"></div>
+      <div id="loading-text">Initializing Space Visualization...</div>
+    </div>
+
+    <!-- Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Header -->
+    <div id="header" class="glass-panel">
+      <div class="status-dot"></div>
+      <h1>🌍 Asteroid Tracker</h1>
+    </div>
+
+    <!-- User Location Info -->
+    <div id="user-location-info" class="glass-panel">
+      <span class="location-icon">📍</span>
+      <span id="location-text">Detecting your location...</span>
+    </div>
+
+    <!-- Asteroid List Panel -->
+    <div id="asteroid-panel" class="glass-panel">
+      <h2>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M8 12h8M12 8v8" />
+        </svg>
+        Near-Earth Asteroids
+      </h2>
+      <div id="asteroid-list"></div>
+
+      <button id="track-btn" disabled>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 19V5M5 12l7-7 7 7" />
+        </svg>
+        Track Asteroid
+      </button>
+
+      <div class="control-buttons">
+        <button class="control-btn" id="hide-info-btn">Hide Info</button>
+        <button class="control-btn" id="new-launch-btn">New Launch</button>
+      </div>
+
+      <div class="control-buttons">
+        <button class="control-btn" id="scale-toggle">Realistic Scale</button>
+        <button class="control-btn" id="orbit-toggle">Show Orbits</button>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div id="info-panel" class="glass-panel">
+      <h2 id="asteroid-title">Asteroid Details</h2>
+      <div id="info-content"></div>
+      <div id="composition-chart"></div>
+    </div>
+
+    <!-- Rotating Data Display -->
+    <div id="rotating-data" class="glass-panel">
+      <div class="data-label" id="rotating-label">Loading...</div>
+      <div class="data-value" id="rotating-value">--</div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="glass-panel">
+      <div class="hud-item">
+        <div class="label">Distance from Earth</div>
+        <div class="value" id="hud-earth-dist">--</div>
+      </div>
+      <div class="hud-item">
+        <div class="label">Distance to Target</div>
+        <div class="value" id="hud-target-dist">--</div>
+      </div>
+      <div class="hud-item">
+        <div class="label">Speed</div>
+        <div class="value" id="hud-speed">--</div>
+      </div>
+      <div class="hud-item">
+        <div class="label">ETA</div>
+        <div class="value" id="hud-eta">--</div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div id="progress-container" class="glass-panel">
+      <div id="progress-bar">
+        <div id="progress-fill"></div>
+      </div>
+      <div id="progress-text">Preparing launch sequence...</div>
+    </div>
+
+    <!-- View Toggle -->
+    <div id="view-toggle">
+      <button class="view-btn active" data-view="earth">Earth View</button>
+      <button class="view-btn" data-view="asteroid">Asteroid View</button>
+      <button class="view-btn" data-view="solar">Solar System</button>
+    </div>
+
+    <!-- Mini Map -->
+    <div id="mini-map" class="glass-panel">
+      <canvas id="mini-map-canvas"></canvas>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+      import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+      import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
+      // ============================================
+      // CONFIGURATION
+      // ============================================
+      const CONFIG = {
+        colors: {
+          deepSpace: 0x0a0e27,
+          electricPurple: 0x8b5cf6,
+          neonCyan: 0x06b6d4,
+          vibrantOrange: 0xf97316,
+          dangerRed: 0xef4444,
+          successGreen: 0x10b981,
+        },
+        animation: {
+          dataRotationDelay: 390, // 0.39 seconds in ms
+          cameraTransitionDuration: 2000,
+          rocketLaunchDuration: 3000,
+          journeyDuration: 5000,
+          arrivalDuration: 2000,
+        },
+      };
+
+      // ============================================
+      // ASTEROID DATA
+      // ============================================
+      const ASTEROIDS_DATA = [
+        {
+          id: 1,
+          name: "99942 Apophis",
+          diameter: 370,
+          velocity: 30.73,
+          distanceAU: 0.0982,
+          closeApproach: "April 13, 2029",
+          missDistance: 31860,
+          palermoScale: -3.19,
+          torinoScale: 0,
+          composition: "S-type",
+          rotationPeriod: 30.4,
+          absoluteMagnitude: 19.7,
+          risk: "safe",
+          mass: "2.7 × 10¹⁰ kg",
+          surfaceTemp: "-40°C to +40°C",
+          discoveryDate: "June 19, 2004",
+          orbitalPeriod: "323.6 days",
+          inclination: "3.33°",
+          eccentricity: 0.191,
+        },
+        {
+          id: 2,
+          name: "101955 Bennu",
+          diameter: 490,
+          velocity: 28.02,
+          distanceAU: 0.0024,
+          closeApproach: "September 24, 2182",
+          missDistance: 750000,
+          palermoScale: -1.71,
+          torinoScale: 0,
+          composition: "C-type",
+          rotationPeriod: 4.3,
+          absoluteMagnitude: 20.19,
+          risk: "monitor",
+          mass: "7.3 × 10¹⁰ kg",
+          surfaceTemp: "-73°C to +27°C",
+          discoveryDate: "September 11, 1999",
+          orbitalPeriod: "436.6 days",
+          inclination: "6.03°",
+          eccentricity: 0.204,
+        },
+        {
+          id: 3,
+          name: "29075 (1950 DA)",
+          diameter: 1300,
+          velocity: 14.24,
+          distanceAU: 0.0015,
+          closeApproach: "March 16, 2880",
+          missDistance: 11000,
+          palermoScale: -0.58,
+          torinoScale: 0,
+          composition: "M-type",
+          rotationPeriod: 2.12,
+          absoluteMagnitude: 17.55,
+          risk: "caution",
+          mass: "2.0 × 10¹² kg",
+          surfaceTemp: "-100°C to +50°C",
+          discoveryDate: "February 23, 1950",
+          orbitalPeriod: "2.21 years",
+          inclination: "12.17°",
+          eccentricity: 0.508,
+        },
+        {
+          id: 4,
+          name: "2023 DW",
+          diameter: 50,
+          velocity: 24.63,
+          distanceAU: 0.0003,
+          closeApproach: "February 14, 2046",
+          missDistance: 1800000,
+          palermoScale: -2.17,
+          torinoScale: 1,
+          composition: "S-type",
+          rotationPeriod: 6.5,
+          absoluteMagnitude: 24.5,
+          risk: "danger",
+          mass: "3.5 × 10⁸ kg",
+          surfaceTemp: "-60°C",
+          discoveryDate: "February 26, 2023",
+          orbitalPeriod: "271 days",
+          inclination: "0.13°",
+          eccentricity: 0.151,
+        },
+        {
+          id: 5,
+          name: "433 Eros",
+          diameter: 16840,
+          velocity: 24.36,
+          distanceAU: 0.1787,
+          closeApproach: "January 31, 2056",
+          missDistance: 26700000,
+          palermoScale: -8.0,
+          torinoScale: 0,
+          composition: "S-type",
+          rotationPeriod: 5.27,
+          absoluteMagnitude: 10.43,
+          risk: "safe",
+          mass: "6.69 × 10¹⁵ kg",
+          surfaceTemp: "-150°C to +100°C",
+          discoveryDate: "August 13, 1898",
+          orbitalPeriod: "1.76 years",
+          inclination: "10.83°",
+          eccentricity: 0.223,
+        },
+      ];
+
+      // ============================================
+      // APPLICATION STATE
+      // ============================================
+      let state = {
+        scene: null,
+        camera: null,
+        renderer: null,
+        composer: null,
+        controls: null,
+        earth: null,
+        atmosphere: null,
+        clouds: null,
+        rocket: null,
+        selectedAsteroid: null,
+        asteroidMesh: null,
+        userLocation: null,
+        userMarker: null,
+        isTracking: false,
+        infoVisible: true,
+        showOrbits: true,
+        realisticScale: false,
+        currentDataIndex: 0,
+        dataRotationInterval: null,
+        starField: null,
+        exhaustParticles: null,
+        orbitLine: null,
+        trajectoryLine: null,
+      };
+
+      // ============================================
+      // INITIALIZATION
+      // ============================================
+      async function init() {
+        await setupScene();
+        await getUserLocation();
+        createEarth();
+        createStarField();
+        createLighting();
+        setupPostProcessing();
+        populateAsteroidList();
+        setupEventListeners();
+        animate();
+        hideLoading();
+      }
+
+      async function setupScene() {
+        const container = document.getElementById("canvas-container");
+
+        state.scene = new THREE.Scene();
+        state.scene.background = new THREE.Color(CONFIG.colors.deepSpace);
+
+        state.camera = new THREE.PerspectiveCamera(
+          60,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          50000
+        );
+        state.camera.position.set(0, 0, 20);
+
+        state.renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,
+          powerPreference: "high-performance",
+        });
+        state.renderer.setSize(window.innerWidth, window.innerHeight);
+        state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        state.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        state.renderer.toneMappingExposure = 1.0;
+        container.appendChild(state.renderer.domElement);
+
+        state.controls = new OrbitControls(
+          state.camera,
+          state.renderer.domElement
+        );
+        state.controls.enableDamping = true;
+        state.controls.dampingFactor = 0.05;
+        state.controls.minDistance = 8;
+        state.controls.maxDistance = 200;
+      }
+
+      async function getUserLocation() {
+        try {
+          const response = await fetch("https://ipapi.co/json/");
+          const data = await response.json();
+          state.userLocation = {
+            lat: data.latitude,
+            lon: data.longitude,
+            city: data.city,
+            country: data.country_name,
+            ip: data.ip,
+          };
+          document.getElementById(
+            "location-text"
+          ).textContent = `${state.userLocation.city}, ${state.userLocation.country}`;
+        } catch (error) {
+          console.error("Geolocation error:", error);
+          state.userLocation = {
+            lat: 40.7128,
+            lon: -74.006,
+            city: "New York",
+            country: "USA",
+          };
+          document.getElementById("location-text").textContent =
+            "New York, USA (Default)";
+        }
+      }
+
+      // ============================================
+      // EARTH CREATION
+      // ============================================
+      function createEarth() {
+        const textureLoader = new THREE.TextureLoader();
+
+        // Earth geometry with high detail for smooth appearance
+        const earthGeometry = new THREE.SphereGeometry(5, 128, 128);
+
+        // Create procedural textures for clean look
+        const earthCanvas = createEarthTexture();
+        const earthTexture = new THREE.CanvasTexture(earthCanvas);
+
+        const earthMaterial = new THREE.MeshPhongMaterial({
+          map: earthTexture,
+          bumpScale: 0.05,
+          specular: new THREE.Color(0x333333),
+          shininess: 5,
+        });
+
+        state.earth = new THREE.Mesh(earthGeometry, earthMaterial);
+        state.scene.add(state.earth);
+
+        // Atmosphere glow
+        createAtmosphere();
+
+        // Clouds layer
+        createClouds();
+
+        // City lights layer for night side
+        createCityLights();
+
+        // User location marker
+        createUserMarker();
+      }
+
+      function createEarthTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 2048;
+        canvas.height = 1024;
+        const ctx = canvas.getContext("2d");
+
+        // Ocean
+        ctx.fillStyle = "#1a4d7c";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Continents (simplified but clean)
+        ctx.fillStyle = "#3d7c47";
+
+        // North America
+        ctx.beginPath();
+        ctx.ellipse(400, 300, 200, 150, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // South America
+        ctx.beginPath();
+        ctx.ellipse(500, 600, 100, 200, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Europe/Africa
+        ctx.beginPath();
+        ctx.ellipse(1050, 350, 80, 120, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(1050, 550, 120, 180, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Asia
+        ctx.beginPath();
+        ctx.ellipse(1400, 300, 250, 150, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Australia
+        ctx.beginPath();
+        ctx.ellipse(1650, 650, 100, 80, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Add some texture variation
+        for (let i = 0; i < 1000; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const imageData = ctx.getImageData(x, y, 1, 1);
+          if (imageData.data[1] > 100) {
+            // On land
+            ctx.fillStyle = `rgba(${50 + Math.random() * 20}, ${
+              100 + Math.random() * 40
+            }, ${60 + Math.random() * 20}, 0.5)`;
+            ctx.beginPath();
+            ctx.arc(x, y, Math.random() * 20, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        return canvas;
+      }
+
+      function createAtmosphere() {
+        const atmosphereGeometry = new THREE.SphereGeometry(5.15, 64, 64);
+        const atmosphereMaterial = new THREE.ShaderMaterial({
+          vertexShader: `
+                    varying vec3 vNormal;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+          fragmentShader: `
+                    varying vec3 vNormal;
+                    void main() {
+                        float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+                        gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+                    }
+                `,
+          blending: THREE.AdditiveBlending,
+          side: THREE.BackSide,
+          transparent: true,
+        });
+
+        state.atmosphere = new THREE.Mesh(
+          atmosphereGeometry,
+          atmosphereMaterial
+        );
+        state.scene.add(state.atmosphere);
+      }
+
+      function createClouds() {
+        const cloudCanvas = document.createElement("canvas");
+        cloudCanvas.width = 1024;
+        cloudCanvas.height = 512;
+        const ctx = cloudCanvas.getContext("2d");
+
+        ctx.fillStyle = "rgba(0,0,0,0)";
+        ctx.fillRect(0, 0, cloudCanvas.width, cloudCanvas.height);
+
+        // Create cloud patterns
+        for (let i = 0; i < 200; i++) {
+          const x = Math.random() * cloudCanvas.width;
+          const y = Math.random() * cloudCanvas.height;
+          const radius = Math.random() * 50 + 20;
+
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+          gradient.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+          gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+        const cloudGeometry = new THREE.SphereGeometry(5.05, 64, 64);
+        const cloudMaterial = new THREE.MeshPhongMaterial({
+          map: cloudTexture,
+          transparent: true,
+          opacity: 0.4,
+          depthWrite: false,
+        });
+
+        state.clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        state.scene.add(state.clouds);
+      }
+
+      function createCityLights() {
+        const lightsCanvas = document.createElement("canvas");
+        lightsCanvas.width = 2048;
+        lightsCanvas.height = 1024;
+        const ctx = lightsCanvas.getContext("2d");
+
+        ctx.fillStyle = "rgba(0,0,0,0)";
+        ctx.fillRect(0, 0, lightsCanvas.width, lightsCanvas.height);
+
+        // Major city locations (approximate)
+        const cities = [
+          { x: 400, y: 330 },
+          { x: 350, y: 380 }, // North America
+          { x: 1020, y: 320 },
+          { x: 1050, y: 350 }, // Europe
+          { x: 1350, y: 280 },
+          { x: 1500, y: 320 }, // Asia
+          { x: 1600, y: 600 }, // Australia
+        ];
+
+        cities.forEach((city) => {
+          for (let i = 0; i < 50; i++) {
+            const offsetX = (Math.random() - 0.5) * 100;
+            const offsetY = (Math.random() - 0.5) * 50;
+            ctx.fillStyle = `rgba(255, 200, 100, ${Math.random() * 0.8})`;
+            ctx.beginPath();
+            ctx.arc(
+              city.x + offsetX,
+              city.y + offsetY,
+              Math.random() * 3,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+          }
+        });
+
+        const lightsTexture = new THREE.CanvasTexture(lightsCanvas);
+        const lightsGeometry = new THREE.SphereGeometry(5.01, 64, 64);
+        const lightsMaterial = new THREE.MeshBasicMaterial({
+          map: lightsTexture,
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+
+        const cityLights = new THREE.Mesh(lightsGeometry, lightsMaterial);
+        state.earth.add(cityLights);
+      }
+
+      function createUserMarker() {
+        const markerGroup = new THREE.Group();
+
+        // Pin body
+        const pinGeometry = new THREE.ConeGeometry(0.1, 0.3, 16);
+        const pinMaterial = new THREE.MeshPhongMaterial({
+          color: CONFIG.colors.dangerRed,
+          emissive: CONFIG.colors.dangerRed,
+          emissiveIntensity: 0.5,
+        });
+        const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+        pin.rotation.x = Math.PI;
+
+        // Pin head
+        const headGeometry = new THREE.SphereGeometry(0.08, 16, 16);
+        const head = new THREE.Mesh(headGeometry, pinMaterial);
+        head.position.y = 0.15;
+
+        // Glow effect
+        const glowGeometry = new THREE.SphereGeometry(0.15, 16, 16);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: CONFIG.colors.dangerRed,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.name = "glow";
+
+        markerGroup.add(pin);
+        markerGroup.add(head);
+        markerGroup.add(glow);
+
+        // Position marker at user location
+        if (state.userLocation) {
+          const pos = latLongToVector3(
+            state.userLocation.lat,
+            state.userLocation.lon,
+            5.2
+          );
+          markerGroup.position.copy(pos);
+          markerGroup.lookAt(0, 0, 0);
+          markerGroup.rotateX(Math.PI / 2);
+        }
+
+        state.userMarker = markerGroup;
+        state.scene.add(markerGroup);
+      }
+
+      function latLongToVector3(lat, lon, radius) {
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+
+        const x = -radius * Math.sin(phi) * Math.cos(theta);
+        const y = radius * Math.cos(phi);
+        const z = radius * Math.sin(phi) * Math.sin(theta);
+
+        return new THREE.Vector3(x, y, z);
+      }
+
+      // ============================================
+      // STAR FIELD
+      // ============================================
+      function createStarField() {
+        const starsGeometry = new THREE.BufferGeometry();
+        const starCount = 15000;
+        const positions = new Float32Array(starCount * 3);
+        const colors = new Float32Array(starCount * 3);
+        const sizes = new Float32Array(starCount);
+
+        for (let i = 0; i < starCount; i++) {
+          const i3 = i * 3;
+          const radius = 500 + Math.random() * 500;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+
+          positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+          positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+          positions[i3 + 2] = radius * Math.cos(phi);
+
+          const color = new THREE.Color();
+          color.setHSL(
+            0.1 + Math.random() * 0.2,
+            0.2,
+            0.8 + Math.random() * 0.2
+          );
+          colors[i3] = color.r;
+          colors[i3 + 1] = color.g;
+          colors[i3 + 2] = color.b;
+
+          sizes[i] = Math.random() * 2;
+        }
+
+        starsGeometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3)
+        );
+        starsGeometry.setAttribute(
+          "color",
+          new THREE.BufferAttribute(colors, 3)
+        );
+        starsGeometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+
+        const starsMaterial = new THREE.PointsMaterial({
+          size: 1,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.8,
+          sizeAttenuation: true,
+        });
+
+        state.starField = new THREE.Points(starsGeometry, starsMaterial);
+        state.scene.add(state.starField);
+      }
+
+      // ============================================
+      // LIGHTING
+      // ============================================
+      function createLighting() {
+        // Ambient light for base illumination
+        const ambient = new THREE.AmbientLight(0x404040, 0.5);
+        state.scene.add(ambient);
+
+        // Sun light (directional)
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2);
+        sunLight.position.set(50, 20, 50);
+        sunLight.castShadow = true;
+        state.scene.add(sunLight);
+
+        // Fill light
+        const fillLight = new THREE.HemisphereLight(0x8888ff, 0x444422, 0.5);
+        state.scene.add(fillLight);
+
+        // Point light at Earth
+        const earthLight = new THREE.PointLight(0x4488ff, 0.5, 20);
+        earthLight.position.set(0, 0, 0);
+        state.scene.add(earthLight);
+      }
+
+      // ============================================
+      // POST PROCESSING
+      // ============================================
+      function setupPostProcessing() {
+        state.composer = new EffectComposer(state.renderer);
+
+        const renderPass = new RenderPass(state.scene, state.camera);
+        state.composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          0.5, // strength
+          0.4, // radius
+          0.85 // threshold
+        );
+        state.composer.addPass(bloomPass);
+      }
+
+      // ============================================
+      // ASTEROID CREATION
+      // ============================================
+      function createAsteroid(asteroidData) {
+        // Remove existing asteroid
+        if (state.asteroidMesh) {
+          state.scene.remove(state.asteroidMesh);
+        }
+
+        const asteroidGroup = new THREE.Group();
+
+        // Determine scale factor
+        const scaleFactor = state.realisticScale
+          ? asteroidData.diameter / 1000
+          : 1.5;
+
+        // Create asteroid geometry with high subdivision for smooth appearance
+        const geometry = new THREE.IcosahedronGeometry(scaleFactor, 4);
+
+        // Deform geometry for natural asteroid shape
+        const positions = geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+          const vertex = new THREE.Vector3(
+            positions.getX(i),
+            positions.getY(i),
+            positions.getZ(i)
+          );
+
+          const noise = 0.8 + Math.random() * 0.4;
+          vertex.multiplyScalar(noise);
+
+          positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+        geometry.computeVertexNormals();
+
+        // Material based on composition
+        let color, emissive;
+        switch (asteroidData.composition) {
+          case "C-type":
+            color = 0x2a2a2a;
+            emissive = 0x111111;
+            break;
+          case "S-type":
+            color = 0x8a8a8a;
+            emissive = 0x333333;
+            break;
+          case "M-type":
+            color = 0xaaaaaa;
+            emissive = 0x444444;
+            break;
+          default:
+            color = 0x666666;
+            emissive = 0x222222;
+        }
+
+        const material = new THREE.MeshStandardMaterial({
+          color: color,
+          emissive: emissive,
+          roughness: 0.8,
+          metalness: asteroidData.composition === "M-type" ? 0.7 : 0.2,
+          flatShading: false,
+        });
+
+        const asteroidMesh = new THREE.Mesh(geometry, material);
+        asteroidGroup.add(asteroidMesh);
+
+        // Add craters and surface details
+        for (let i = 0; i < 15; i++) {
+          const craterSize = Math.random() * 0.2 + 0.1;
+          const craterGeometry = new THREE.SphereGeometry(
+            craterSize * scaleFactor,
+            16,
+            16
+          );
+          const craterMaterial = new THREE.MeshStandardMaterial({
+            color: color * 0.7,
+            roughness: 0.9,
+            metalness: 0.1,
+          });
+          const crater = new THREE.Mesh(craterGeometry, craterMaterial);
+
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const r = scaleFactor * 0.9;
+
+          crater.position.set(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta),
+            r * Math.cos(phi)
+          );
+
+          asteroidGroup.add(crater);
+        }
+
+        // Position asteroid
+        asteroidGroup.position.set(40, 0, 0);
+        state.asteroidMesh = asteroidGroup;
+        state.scene.add(asteroidGroup);
+
+        // Create orbit line
+        createOrbitLine(asteroidData);
+      }
+
+      function createOrbitLine(asteroidData) {
+        if (state.orbitLine) {
+          state.scene.remove(state.orbitLine);
+        }
+
+        const points = [];
+        const segments = 128;
+        const a = 40; // Semi-major axis
+        const e = asteroidData.eccentricity;
+        const b = a * Math.sqrt(1 - e * e); // Semi-minor axis
+
+        for (let i = 0; i <= segments; i++) {
+          const theta = (i / segments) * Math.PI * 2;
+          const x = a * Math.cos(theta);
+          const z = b * Math.sin(theta);
+          points.push(new THREE.Vector3(x, 0, z));
+        }
+
+        const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const orbitMaterial = new THREE.LineBasicMaterial({
+          color: CONFIG.colors.electricPurple,
+          transparent: true,
+          opacity: state.showOrbits ? 0.5 : 0,
+        });
+
+        state.orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+        state.scene.add(state.orbitLine);
+      }
+
+      // ============================================
+      // ROCKET CREATION AND LAUNCH
+      // ============================================
+      function createRocket() {
+        const rocketGroup = new THREE.Group();
+
+        // Main body - smooth cylinder
+        const bodyGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1.2, 32);
+        const bodyMaterial = new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          shininess: 100,
+        });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        rocketGroup.add(body);
+
+        // Nose cone
+        const noseGeometry = new THREE.ConeGeometry(0.15, 0.4, 32);
+        const noseMaterial = new THREE.MeshPhongMaterial({
+          color: CONFIG.colors.dangerRed,
+          shininess: 100,
+        });
+        const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+        nose.position.y = 0.8;
+        rocketGroup.add(nose);
+
+        // Fins
+        for (let i = 0; i < 4; i++) {
+          const finGeometry = new THREE.BoxGeometry(0.02, 0.4, 0.3);
+          const finMaterial = new THREE.MeshPhongMaterial({
+            color: CONFIG.colors.dangerRed,
+            shininess: 100,
+          });
+          const fin = new THREE.Mesh(finGeometry, finMaterial);
+          fin.position.y = -0.4;
+          fin.rotation.y = (i * Math.PI) / 2;
+          fin.position.x = Math.sin(fin.rotation.y) * 0.15;
+          fin.position.z = Math.cos(fin.rotation.y) * 0.15;
+          rocketGroup.add(fin);
+        }
+
+        // Engine nozzle
+        const nozzleGeometry = new THREE.ConeGeometry(0.12, 0.2, 32);
+        const nozzleMaterial = new THREE.MeshPhongMaterial({
+          color: 0x333333,
+          shininess: 50,
+        });
+        const nozzle = new THREE.Mesh(nozzleGeometry, nozzleMaterial);
+        nozzle.position.y = -0.7;
+        nozzle.rotation.x = Math.PI;
+        rocketGroup.add(nozzle);
+
+        // Windows
+        for (let i = 0; i < 3; i++) {
+          const windowGeometry = new THREE.CircleGeometry(0.05, 16);
+          const windowMaterial = new THREE.MeshBasicMaterial({
+            color: CONFIG.colors.neonCyan,
+          });
+          const window = new THREE.Mesh(windowGeometry, windowMaterial);
+          window.position.y = 0.2 - i * 0.2;
+          window.position.z = 0.151;
+          rocketGroup.add(window);
+        }
+
+        // Scale rocket
+        rocketGroup.scale.set(0.5, 0.5, 0.5);
+
+        return rocketGroup;
+      }
+
+      function createExhaustParticles() {
+        const particleCount = 200;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+          positions[i * 3] = 0;
+          positions[i * 3 + 1] = 0;
+          positions[i * 3 + 2] = 0;
+
+          const color = new THREE.Color();
+          color.setHSL(0.1, 1, 0.5 + Math.random() * 0.5);
+          colors[i * 3] = color.r;
+          colors[i * 3 + 1] = color.g;
+          colors[i * 3 + 2] = color.b;
+
+          sizes[i] = Math.random() * 5;
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3)
+        );
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+
+        const material = new THREE.PointsMaterial({
+          size: 0.1,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending,
+        });
+
+        return new THREE.Points(geometry, material);
+      }
+
+      async function launchRocket() {
+        if (!state.selectedAsteroid || state.isTracking) return;
+
+        state.isTracking = true;
+        document.getElementById("track-btn").disabled = true;
+
+        // Create rocket at user location
+        state.rocket = createRocket();
+        state.exhaustParticles = createExhaustParticles();
+
+        const startPos = latLongToVector3(
+          state.userLocation.lat,
+          state.userLocation.lon,
+          5.3
+        );
+
+        state.rocket.position.copy(startPos);
+        state.rocket.lookAt(0, 0, 0);
+        state.rocket.rotateX(Math.PI / 2);
+
+        state.scene.add(state.rocket);
+        state.rocket.add(state.exhaustParticles);
+        state.exhaustParticles.position.y = -0.5;
+
+        // Show HUD and progress
+        document.getElementById("hud").classList.add("visible");
+        document.getElementById("progress-container").classList.add("visible");
+
+        // Phase 1: Zoom out and show launch
+        await animateCameraZoomOut();
+
+        // Phase 2: Launch sequence
+        await animateLaunch();
+
+        // Phase 3: Journey to asteroid
+        await animateJourney();
+
+        // Phase 4: Orbital insertion and data display
+        await startAsteroidOrbit();
+      }
+
+      async function animateCameraZoomOut() {
+        return new Promise((resolve) => {
+          const startPos = state.camera.position.clone();
+          const endPos = new THREE.Vector3(0, 15, 35);
+          const duration = 2000;
+          const startTime = Date.now();
+
+          updateProgress(0, "Preparing launch sequence...");
+
+          function animate() {
+            const elapsed = Date.now() - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = easeInOutPower2(t);
+
+            state.camera.position.lerpVectors(startPos, endPos, eased);
+            state.camera.lookAt(state.earth.position);
+
+            if (t < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              resolve();
+            }
+          }
+          animate();
+        });
+      }
+
+      async function animateLaunch() {
+        return new Promise((resolve) => {
+          const startPos = state.rocket.position.clone();
+          const midPos = startPos.clone().multiplyScalar(2);
+          const duration = 3000;
+          const startTime = Date.now();
+
+          function animate() {
+            const elapsed = Date.now() - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = easeInOutPower2(t);
+
+            state.rocket.position.lerpVectors(startPos, midPos, eased);
+
+            // Update exhaust particles
+            updateExhaustParticles();
+
+            updateProgress(
+              t * 0.2,
+              "Launching rocket from " + state.userLocation.city + "..."
+            );
+            updateHUD(t * 0.2);
+
+            if (t < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              resolve();
+            }
+          }
+          animate();
+        });
+      }
+
+      async function animateJourney() {
+        return new Promise((resolve) => {
+          const startPos = state.rocket.position.clone();
+          const endPos = state.asteroidMesh.position
+            .clone()
+            .add(new THREE.Vector3(-3, 0, 0));
+          const duration = 5000;
+          const startTime = Date.now();
+
+          // Create trajectory line
+          const trajectoryPoints = [startPos.clone(), endPos.clone()];
+          const trajectoryGeometry = new THREE.BufferGeometry().setFromPoints(
+            trajectoryPoints
+          );
+          const trajectoryMaterial = new THREE.LineDashedMaterial({
+            color: CONFIG.colors.neonCyan,
+            dashSize: 0.5,
+            gapSize: 0.2,
+          });
+          state.trajectoryLine = new THREE.Line(
+            trajectoryGeometry,
+            trajectoryMaterial
+          );
+          state.trajectoryLine.computeLineDistances();
+          state.scene.add(state.trajectoryLine);
+
+          function animate() {
+            const elapsed = Date.now() - startTime;
+            const t = Math.min(elapsed / duration, 1);
+            const eased = easeInOutPower2(t);
+
+            // Move rocket
+            state.rocket.position.lerpVectors(startPos, endPos, eased);
+
+            // Rotate rocket to face direction
+            state.rocket.lookAt(endPos);
+            state.rocket.rotateX(Math.PI / 2);
+
+            // Camera follows rocket
+            const cameraOffset = new THREE.Vector3(-5, 3, 8);
+            state.camera.position.copy(
+              state.rocket.position.clone().add(cameraOffset)
+            );
+            state.camera.lookAt(state.rocket.position);
+
+            // Update exhaust
+            updateExhaustParticles();
+
+            updateProgress(
+              0.2 + t * 0.6,
+              "Traveling to " + state.selectedAsteroid.name + "..."
+            );
+            updateHUD(0.2 + t * 0.6);
+
+            if (t < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              state.scene.remove(state.trajectoryLine);
+              resolve();
+            }
+          }
+          animate();
+        });
+      }
+
+      async function startAsteroidOrbit() {
+        return new Promise((resolve) => {
+          let orbitAngle = 0;
+          const orbitRadius = 4;
+          const orbitSpeed = 0.01;
+
+          // Show info panel
+          document.getElementById("info-panel").classList.add("visible");
+          document.getElementById("rotating-data").classList.add("visible");
+          document.getElementById("mini-map").classList.add("visible");
+
+          // Start data rotation
+          startDataRotation();
+
+          // Position camera to view asteroid
+          state.camera.position.set(
+            state.asteroidMesh.position.x + 10,
+            state.asteroidMesh.position.y + 5,
+            state.asteroidMesh.position.z + 10
+          );
+          state.controls.target.copy(state.asteroidMesh.position);
+
+          updateProgress(
+            1,
+            "Orbit established around " + state.selectedAsteroid.name
+          );
+
+          // Orbit animation
+          function orbitAnimate() {
+            if (!state.isTracking) return;
+
+            orbitAngle += orbitSpeed;
+
+            // Move rocket in orbit
+            const x =
+              state.asteroidMesh.position.x +
+              Math.cos(orbitAngle) * orbitRadius;
+            const z =
+              state.asteroidMesh.position.z +
+              Math.sin(orbitAngle) * orbitRadius;
+            state.rocket.position.set(x, state.asteroidMesh.position.y, z);
+
+            // Rotate rocket to face direction of travel
+            state.rocket.lookAt(
+              state.asteroidMesh.position.x +
+                Math.cos(orbitAngle + 0.1) * orbitRadius,
+              state.asteroidMesh.position.y,
+              state.asteroidMesh.position.z +
+                Math.sin(orbitAngle + 0.1) * orbitRadius
+            );
+
+            // Rotate asteroid
+            state.asteroidMesh.rotation.y += 0.002;
+
+            // Update exhaust
+            updateExhaustParticles();
+
+            requestAnimationFrame(orbitAnimate);
+          }
+          orbitAnimate();
+        });
+      }
+
+      function updateExhaustParticles() {
+        if (!state.exhaustParticles) return;
+
+        const positions =
+          state.exhaustParticles.geometry.attributes.position.array;
+        const count = positions.length / 3;
+
+        for (let i = 0; i < count; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 0.2;
+          positions[i * 3 + 1] = -Math.random() * 0.8;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+        }
+
+        state.exhaustParticles.geometry.attributes.position.needsUpdate = true;
+      }
+
+      function startDataRotation() {
+        const dataFields = [
+          {
+            label: "Diameter",
+            value: state.selectedAsteroid.diameter + " meters",
+          },
+          {
+            label: "Velocity",
+            value: state.selectedAsteroid.velocity + " km/s",
+          },
+          {
+            label: "Distance",
+            value: state.selectedAsteroid.distanceAU + " AU",
+          },
+          { label: "Mass", value: state.selectedAsteroid.mass },
+          { label: "Composition", value: state.selectedAsteroid.composition },
+          {
+            label: "Rotation Period",
+            value: state.selectedAsteroid.rotationPeriod + " hours",
+          },
+          {
+            label: "Close Approach",
+            value: state.selectedAsteroid.closeApproach,
+          },
+          {
+            label: "Miss Distance",
+            value: state.selectedAsteroid.missDistance.toLocaleString() + " km",
+          },
+          {
+            label: "Palermo Scale",
+            value: state.selectedAsteroid.palermoScale,
+          },
+          { label: "Torino Scale", value: state.selectedAsteroid.torinoScale },
+          { label: "Surface Temp", value: state.selectedAsteroid.surfaceTemp },
+          {
+            label: "Discovery Date",
+            value: state.selectedAsteroid.discoveryDate,
+          },
+          {
+            label: "Orbital Period",
+            value: state.selectedAsteroid.orbitalPeriod,
+          },
+          { label: "Inclination", value: state.selectedAsteroid.inclination },
+          {
+            label: "Absolute Magnitude",
+            value: state.selectedAsteroid.absoluteMagnitude,
+          },
+        ];
+
+        let index = 0;
+
+        function updateData() {
+          const rotatingData = document.getElementById("rotating-data");
+          const label = document.getElementById("rotating-label");
+          const value = document.getElementById("rotating-value");
+
+          rotatingData.classList.remove("visible");
+
+          setTimeout(() => {
+            label.textContent = dataFields[index].label;
+            value.textContent = dataFields[index].value;
+            rotatingData.classList.add("visible");
+
+            index = (index + 1) % dataFields.length;
+          }, 100);
+        }
+
+        updateData();
+        state.dataRotationInterval = setInterval(
+          updateData,
+          CONFIG.animation.dataRotationDelay
+        );
+      }
+
+      function stopDataRotation() {
+        if (state.dataRotationInterval) {
+          clearInterval(state.dataRotationInterval);
+          state.dataRotationInterval = null;
+        }
+      }
+
+      // ============================================
+      // UI FUNCTIONS
+      // ============================================
+      function populateAsteroidList() {
+        const list = document.getElementById("asteroid-list");
+        list.innerHTML = "";
+
+        ASTEROIDS_DATA.forEach((asteroid) => {
+          const card = document.createElement("div");
+          card.className = "asteroid-card";
+          card.tabIndex = 0;
+          card.setAttribute("role", "button");
+          card.setAttribute("aria-label", `Select asteroid ${asteroid.name}`);
+
+          card.innerHTML = `
+                    <div class="name">${asteroid.name}</div>
+                    <div class="details">
+                        <span>⌀ ${asteroid.diameter}m</span>
+                        <span>↗ ${asteroid.velocity} km/s</span>
+                        <span class="tag ${
+                          asteroid.risk
+                        }">${asteroid.risk.toUpperCase()}</span>
+                    </div>
+                `;
+
+          card.addEventListener("click", () => selectAsteroid(asteroid, card));
+          card.addEventListener("keypress", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              selectAsteroid(asteroid, card);
+            }
+          });
+
+          list.appendChild(card);
+        });
+      }
+
+      function selectAsteroid(asteroid, card) {
+        // Update selection UI
+        document
+          .querySelectorAll(".asteroid-card")
+          .forEach((c) => c.classList.remove("selected"));
+        card.classList.add("selected");
+
+        state.selectedAsteroid = asteroid;
+        document.getElementById("track-btn").disabled = false;
+
+        // Create asteroid in scene
+        createAsteroid(asteroid);
+
+        // Update info panel
+        updateInfoPanel(asteroid);
+      }
+
+      function updateInfoPanel(asteroid) {
+        document.getElementById("asteroid-title").textContent = asteroid.name;
+
+        const infoContent = document.getElementById("info-content");
+        infoContent.innerHTML = "";
+
+        const fields = [
+          {
+            label: "Diameter",
+            value: asteroid.diameter + " meters",
+            class: "",
+          },
+          { label: "Velocity", value: asteroid.velocity + " km/s", class: "" },
+          { label: "Distance", value: asteroid.distanceAU + " AU", class: "" },
+          { label: "Close Approach", value: asteroid.closeApproach, class: "" },
+          {
+            label: "Miss Distance",
+            value: asteroid.missDistance.toLocaleString() + " km",
+            class: "",
+          },
+          {
+            label: "Palermo Scale",
+            value: asteroid.palermoScale,
+            class: asteroid.palermoScale > -2 ? "warning" : "safe",
+          },
+          {
+            label: "Torino Scale",
+            value: asteroid.torinoScale,
+            class: asteroid.torinoScale > 0 ? "danger" : "safe",
+          },
+          { label: "Composition", value: asteroid.composition, class: "" },
+          {
+            label: "Rotation Period",
+            value: asteroid.rotationPeriod + " hours",
+            class: "",
+          },
+        ];
+
+        fields.forEach((field, index) => {
+          const row = document.createElement("div");
+          row.className = "info-row";
+          row.innerHTML = `
+                    <span class="label">${field.label}</span>
+                    <span class="value ${field.class}">${field.value}</span>
+                `;
+
+          setTimeout(() => row.classList.add("visible"), index * 100);
+          infoContent.appendChild(row);
+        });
+
+        // Composition chart
+        updateCompositionChart(asteroid);
+      }
+
+      function updateCompositionChart(asteroid) {
+        const chart = document.getElementById("composition-chart");
+
+        let composition;
+        switch (asteroid.composition) {
+          case "C-type":
+            composition = [
+              { name: "Carbon", percent: 40, color: "#333333" },
+              { name: "Silicates", percent: 35, color: "#666666" },
+              { name: "Water Ice", percent: 15, color: "#88ccff" },
+              { name: "Metals", percent: 10, color: "#aaaaaa" },
+            ];
+            break;
+          case "S-type":
+            composition = [
+              { name: "Silicates", percent: 50, color: "#888888" },
+              { name: "Iron", percent: 25, color: "#aa8855" },
+              { name: "Nickel", percent: 15, color: "#ccbb99" },
+              { name: "Magnesium", percent: 10, color: "#668866" },
+            ];
+            break;
+          case "M-type":
+            composition = [
+              { name: "Iron", percent: 45, color: "#aaaaaa" },
+              { name: "Nickel", percent: 35, color: "#cccccc" },
+              { name: "Cobalt", percent: 12, color: "#8888aa" },
+              { name: "Platinum", percent: 8, color: "#dddddd" },
+            ];
+            break;
+          default:
+            composition = [
+              { name: "Silicates", percent: 60, color: "#777777" },
+              { name: "Metals", percent: 25, color: "#999999" },
+              { name: "Carbon", percent: 15, color: "#444444" },
+            ];
+        }
+
+        chart.innerHTML = `
+                <div class="composition-bar">
+                    ${composition
+                      .map(
+                        (c) => `
+                        <div class="composition-segment" style="width: ${c.percent}%; background: ${c.color};">
+                            ${c.percent}%
+                        </div>
+                    `
+                      )
+                      .join("")}
+                </div>
+                <div class="composition-legend">
+                    ${composition
+                      .map(
+                        (c) => `
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: ${c.color};"></div>
+                            <span>${c.name}</span>
+                        </div>
+                    `
+                      )
+                      .join("")}
+                </div>
+            `;
+      }
+
+      function updateProgress(progress, text) {
+        document.getElementById("progress-fill").style.width =
+          progress * 100 + "%";
+        document.getElementById("progress-text").textContent = text;
+      }
+
+      function updateHUD(progress) {
+        const earthDist = (progress * 100).toFixed(1);
+        const targetDist = (
+          (1 - progress) *
+          state.selectedAsteroid.distanceAU *
+          150000000
+        ).toFixed(0);
+        const speed = (25 + Math.random() * 5).toFixed(1);
+        const eta = Math.max(0, Math.round((1 - progress) * 12));
+
+        document.getElementById("hud-earth-dist").textContent =
+          earthDist + " km";
+        document.getElementById("hud-target-dist").textContent =
+          (targetDist / 1000000).toFixed(2) + "M km";
+        document.getElementById("hud-speed").textContent = speed + " km/s";
+        document.getElementById("hud-eta").textContent = eta + "s";
+      }
+
+      function hideLoading() {
+        setTimeout(() => {
+          document.getElementById("loading-screen").classList.add("hidden");
+        }, 1500);
+      }
+
+      function resetTracking() {
+        state.isTracking = false;
+        stopDataRotation();
+
+        // Remove rocket
+        if (state.rocket) {
+          state.scene.remove(state.rocket);
+          state.rocket = null;
+        }
+
+        // Hide UI elements
+        document.getElementById("hud").classList.remove("visible");
+        document
+          .getElementById("progress-container")
+          .classList.remove("visible");
+        document.getElementById("rotating-data").classList.remove("visible");
+        document.getElementById("mini-map").classList.remove("visible");
+
+        // Reset camera
+        state.camera.position.set(0, 0, 20);
+        state.controls.target.set(0, 0, 0);
+
+        // Re-enable track button
+        document.getElementById("track-btn").disabled = false;
+      }
+
+      function toggleInfoVisibility() {
+        state.infoVisible = !state.infoVisible;
+
+        const infoPanel = document.getElementById("info-panel");
+        const rotatingData = document.getElementById("rotating-data");
+        const hideBtn = document.getElementById("hide-info-btn");
+
+        if (state.infoVisible) {
+          infoPanel.classList.add("visible");
+          rotatingData.classList.add("visible");
+          hideBtn.textContent = "Hide Info";
+        } else {
+          infoPanel.classList.remove("visible");
+          rotatingData.classList.remove("visible");
+          hideBtn.textContent = "Show Info";
+        }
+      }
+
+      // ============================================
+      // EVENT LISTENERS
+      // ============================================
+      function setupEventListeners() {
+        // Track button
+        document
+          .getElementById("track-btn")
+          .addEventListener("click", launchRocket);
+
+        // Control buttons
+        document
+          .getElementById("hide-info-btn")
+          .addEventListener("click", toggleInfoVisibility);
+        document
+          .getElementById("new-launch-btn")
+          .addEventListener("click", resetTracking);
+
+        // Toggle buttons
+        document
+          .getElementById("scale-toggle")
+          .addEventListener("click", function () {
+            state.realisticScale = !state.realisticScale;
+            this.classList.toggle("active");
+            if (state.selectedAsteroid) {
+              createAsteroid(state.selectedAsteroid);
+            }
+          });
+
+        document
+          .getElementById("orbit-toggle")
+          .addEventListener("click", function () {
+            state.showOrbits = !state.showOrbits;
+            this.classList.toggle("active");
+            if (state.orbitLine) {
+              state.orbitLine.material.opacity = state.showOrbits ? 0.5 : 0;
+            }
+          });
+
+        // View buttons
+        document.querySelectorAll(".view-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            document
+              .querySelectorAll(".view-btn")
+              .forEach((b) => b.classList.remove("active"));
+            this.classList.add("active");
+
+            const view = this.dataset.view;
+            switch (view) {
+              case "earth":
+                state.camera.position.set(0, 0, 20);
+                state.controls.target.set(0, 0, 0);
+                break;
+              case "asteroid":
+                if (state.asteroidMesh) {
+                  state.camera.position.set(
+                    state.asteroidMesh.position.x + 5,
+                    state.asteroidMesh.position.y + 3,
+                    state.asteroidMesh.position.z + 5
+                  );
+                  state.controls.target.copy(state.asteroidMesh.position);
+                }
+                break;
+              case "solar":
+                state.camera.position.set(0, 80, 80);
+                state.controls.target.set(20, 0, 0);
+                break;
+            }
+          });
+        });
+
+        // Window resize
+        window.addEventListener("resize", onWindowResize);
+
+        // Keyboard navigation
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            resetTracking();
+          }
+        });
+      }
+
+      function onWindowResize() {
+        state.camera.aspect = window.innerWidth / window.innerHeight;
+        state.camera.updateProjectionMatrix();
+        state.renderer.setSize(window.innerWidth, window.innerHeight);
+        state.composer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+      function easeInOutPower2(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      }
+
+      // ============================================
+      // ANIMATION LOOP
+      // ============================================
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // Rotate Earth
+        if (state.earth) {
+          state.earth.rotation.y += 0.001;
+        }
+
+        // Rotate clouds
+        if (state.clouds) {
+          state.clouds.rotation.y += 0.0005;
+        }
+
+        // Pulse user marker
+        if (state.userMarker) {
+          const glow = state.userMarker.getObjectByName("glow");
+          if (glow) {
+            const scale = 1 + Math.sin(Date.now() * 0.005) * 0.3;
+            glow.scale.set(scale, scale, scale);
+          }
+        }
+
+        // Rotate star field slowly
+        if (state.starField) {
+          state.starField.rotation.y += 0.0001;
+        }
+
+        // Update controls
+        state.controls.update();
+
+        // Render
+        state.composer.render();
+      }
+
+      // ============================================
+      // MINI MAP
+      // ============================================
+      function initMiniMap() {
+        const canvas = document.getElementById("mini-map-canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = 200;
+        canvas.height = 200;
+
+        function drawMiniMap() {
+          ctx.clearRect(0, 0, 200, 200);
+
+          // Background
+          ctx.fillStyle = "rgba(10, 14, 39, 0.8)";
+          ctx.beginPath();
+          ctx.arc(100, 100, 100, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Sun
+          ctx.fillStyle = "#ffd700";
+          ctx.beginPath();
+          ctx.arc(100, 100, 8, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Earth orbit
+          ctx.strokeStyle = "rgba(6, 182, 212, 0.3)";
+          ctx.beginPath();
+          ctx.arc(100, 100, 40, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Earth
+          ctx.fillStyle = "#06b6d4";
+          const earthAngle = Date.now() * 0.0001;
+          ctx.beginPath();
+          ctx.arc(
+            100 + Math.cos(earthAngle) * 40,
+            100 + Math.sin(earthAngle) * 40,
+            5,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+
+          // Asteroid orbit
+          if (state.asteroidMesh) {
+            ctx.strokeStyle = "rgba(139, 92, 246, 0.3)";
+            ctx.beginPath();
+            ctx.arc(100, 100, 70, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Asteroid
+            ctx.fillStyle = "#8b5cf6";
+            const asteroidAngle = Date.now() * 0.00005;
+            ctx.beginPath();
+            ctx.arc(
+              100 + Math.cos(asteroidAngle) * 70,
+              100 + Math.sin(asteroidAngle) * 70,
+              4,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+          }
+
+          // Rocket
+          if (state.rocket && state.isTracking) {
+            ctx.fillStyle = "#ef4444";
+            const rocketPos = state.rocket.position;
+            const rx = 100 + (rocketPos.x / 50) * 60;
+            const rz = 100 + (rocketPos.z / 50) * 60;
+            ctx.beginPath();
+            ctx.arc(rx, rz, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          requestAnimationFrame(drawMiniMap);
+        }
+
+        drawMiniMap();
+      }
+
+      // Initialize
+      init();
+      initMiniMap();
+    </script>
+  </body>
+</html>
